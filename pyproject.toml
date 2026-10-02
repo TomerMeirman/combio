@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "combio"
+version = "0.1.0"
+description = "Discover compact laboratory composites with SHAP-guided feature selection"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+  "numpy>=2,<3",
+  "pandas>=2,<3",
+  "scipy>=1.13,<2",
+  "scikit-learn>=1.5,<2",
+  "shap>=0.52,<0.53",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "jupyterlab>=4"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
