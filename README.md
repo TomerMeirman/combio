@@ -1,16 +1,22 @@
 # COMBIO
 
-COMBIO discovers a small multiplicative formula from numerical laboratory
-measurements. It fits a gradient-boosted reference model, uses Tree SHAP on an
-inner validation set to rank five labs and identify clear directional trends,
-then selects integer exponents by validation AUROC. The selected formula is a
-single score: `log C = Σ exponent × log(lab)`.
+**COMBIO: Automated Discovery of a Compact Composite Biomarker from Routine
+Laboratory Panels**
+
+COMBIO discovers a multiplicative biomarker with two to four laboratory
+measurements: `C = product_i x_i^a_i`. It fits a gradient-boosted reference model,
+uses Tree SHAP on inner validation to rank five candidate measurements and assess
+their directional trends, then selects small integer exponents by validation
+AUROC. The implementation returns the equivalent risk-oriented log-score,
+`log C = sum_i a_i log(x_i)`.
 
 ## Install and try it
 
 Python 3.12 or newer is required.
 
 ```bash
+git clone https://github.com/TomerMeirman/combio.git
+cd combio
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
@@ -68,22 +74,46 @@ is stored in this repository.
 
 ## Method details
 
-The reference is a histogram gradient-boosted classifier (250 iterations,
-learning rate 0.05, at most 31 leaves, L2 regularization 1.0). It is fitted
-on the inner training subset. Positive-class raw-log-odds Tree SHAP values are
-computed on inner validation. Mean absolute attribution ranks the five labs.
-A sign constraint is used only when the Spearman value–SHAP trend agrees with
-the upper-versus-lower-quartile mean attribution contrast and five ranked bins
-show no trend reversal. Otherwise both signs are searched. The integer grid
-is `{-2,-1,0,1,2}` with two to four nonzero terms. Each candidate is oriented
-using inner training labels; validation AUROC chooses the formula, with ties
-at four decimal places resolved toward fewer terms. These steps never receive
-test labels.
+The default settings implement the manuscript's discovery procedure:
+
+1. **Reserve test data before discovery.** The manuscript reserves 30% of the
+   source cohort for testing. Pass only the remaining source data to `fit`, which
+   splits it 70:30 into inner training and validation. For repeated admissions,
+   keep patients together in the outer split and supply `groups` for the inner
+   split. External cohorts remain outside discovery.
+2. **Fit the reference and rank measurements.** The reference is a
+   `HistGradientBoostingClassifier` fitted on inner training, with 250 iterations,
+   learning rate 0.05, at most 31 leaves and L2 regularization 1.0. Tree SHAP
+   explains positive-class raw log odds on inner validation. Mean absolute SHAP
+   ranks five candidate measurements; the code checks attribution additivity.
+3. **Determine eligible exponent signs.** A positive or negative direction is
+   assigned when Spearman correlation between a measurement and its SHAP values
+   agrees in sign with the upper-minus-lower-quartile mean SHAP contrast, and
+   five ranked groups show no trend reversal. Ambiguous or insufficient evidence
+   leaves both signs eligible. Constraints apply to the final risk-oriented
+   exponents.
+4. **Select the formula on validation.** Search the integer grid
+   `{-2,-1,0,1,2}` with two to four nonzero terms. Inner-training AUROC fixes each
+   candidate's risk orientation; for large training subsets, the implementation
+   uses a reproducible sample of at most 25,000 training rows for this step.
+   The highest validation AUROC rounded to four decimal places wins, followed
+   by fewer nonzero terms. Remaining exact ties retain the first candidate in
+   the grid's iteration order.
+5. **Score the reserved data after selection.** The formula and orientation are
+   fixed before `score` is applied to test or external data. `score` returns
+   `log C`; probability-based analyses require a separately fitted risk mapping.
 
 The caller chooses the laboratory panel and excludes outcome-defining
 measurements before fitting. The notebook shows that choice for one task.
 This package implements formula discovery and raw scoring; calibration,
 clinical use, and external validation require separate study-specific work.
+
+The manuscript's full XGBoost model is a separate comparator. The discovery
+reference used by this package is the histogram gradient-boosted model above.
+
+## Funding
+
+This research was supported by the Israel Science Foundation (grant No. 2672/24).
 
 ## License
 
